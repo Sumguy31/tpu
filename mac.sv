@@ -1,8 +1,8 @@
 `default_nettype none
 
 module mac
-#(parameter IN_WIDTH=8,
-  parameter OUT_WIDTH=8)
+#(parameter IN_WIDTH=4,
+  parameter OUT_WIDTH=4)
  (input  logic clk, rst, en, input  logic [IN_WIDTH-1:0] a, b,
   output logic [OUT_WIDTH-1:0] sum);
 
