@@ -6,13 +6,12 @@ INCLUDES_DIR = rtl/
 SYNTH = yosys
 SYNTH_FLAGS =
 
-.phony: synth synth.quiet
 
-synth: $(VH_FILES) $(SV_FILES)
+synth: $(SV_FILES) $(VH_FILES)
 	$(SYNTH) $(SYNTH_FLAGS) -c tcl/synth.tcl
 
-synth.quiet: $(VH_FILES) $(SV_FILES)
-	$(SYNTH) $(SYNTH_FLAGS) -q -c tcl/synth.tcl
+synth.verilog: $(V_FILES)
+	$(SYNTH) $(SYNTH_FLAGS) -c tcl/synth_verilog.tcl
 
 $(V_FILES): $(SV_FILES) $(VH_FILES)
 	sv2v -I $(INCLUDES_DIR) $(SV_FILES) > $(V_FILES)
