@@ -88,7 +88,8 @@ module tpu
                 .a(kernal_data),
                 .b(matrix_data),
                 .sum(data_out));
-
+  // github synthesis workflow seems to break when it sees assertions
+`ifdef SIMULATION
   assertKernalData : assert property
     (isKnown(kernal_data, rst, (mac_en & ~write_mode), clk))
     else $error("kernal data is unknown");
@@ -99,4 +100,5 @@ module tpu
   property isKnown(signal, reset, en, clock);
     @(posedge clock) (!reset  && en)|-> !$isunknown(signal);
   endproperty : isKnown
+`endif //SIMULATION
 endmodule : tpu
