@@ -2,7 +2,7 @@
 `include "defines.vh"
 
 module tpu
-#(parameter MATRIX_DIM=16,
+#(parameter MATRIX_DIM=32,
   parameter CONV_DIM=3)
  (input  logic clk, rst,
   input  logic insert_kernal, write_mode, write, ready,
