@@ -9,8 +9,9 @@ module my_chip (
 
   tpu TPU(.clk(clock), .rst(reset),
           .insert_kernal(io_in[0]),
-          .insert_matrix(io_in[1]),
-          .ready(io_in[2]),
+          .write(io_in[1]),
+          .write_mode(io_in[2]),
+          .ready(io_in[3]),
           .data_in(io_in[11:4]),
           .done(io_out[0]),
           .data_out(io_out[11:4])

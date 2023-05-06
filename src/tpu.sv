@@ -5,7 +5,7 @@ module tpu
 #(parameter MATRIX_DIM=16,
   parameter CONV_DIM=3)
  (input  logic clk, rst,
-  input  logic insert_kernal, insert_matrix, ready,
+  input  logic insert_kernal, write_mode, write, ready,
   input  data_t data_in,
   output logic done,
   output data_t data_out);
@@ -28,12 +28,12 @@ module tpu
   conv_coord_t kernal_addr;
   logic [($clog2(CONV_DIM*CONV_DIM))-1:0] kernal_data_sel;
   always_comb begin
-    kernal_data_sel = kernal_addr.x * CONV_DIM
-                      + {{$clog2(CONV_DIM){1'b0}},kernal_addr.y};
+    kernal_data_sel = kernal_addr.y * CONV_DIM
+                      + {{$clog2(CONV_DIM){1'b0}},kernal_addr.x};
   end
 
   matrix #(.MATRIX_DIM(CONV_DIM))
-         KERNAL_MAT(.clk, .rst, .we(insert_kernal),
+         KERNAL_MAT(.clk, .rst, .we(insert_kernal & write),
                     .D(data_in), .Q(kernal_data),
                     .addr(kernal_data_sel));
   // MATRIX LOGIC
@@ -42,11 +42,15 @@ module tpu
   matrix_coord_t matrix_addr;
   logic [($clog2(MATRIX_DIM*MATRIX_DIM))-1:0] matrix_data_sel;
   always_comb begin
-    matrix_data_sel = matrix_addr.x[$clog2(MATRIX_DIM)-1:0] *  MATRIX_DIM
-                    + {{$clog2(MATRIX_DIM){1'b0}}, matrix_addr.y[$clog2(MATRIX_DIM)-1:0]};
+    if (write_mode & ~insert_kernal)
+    matrix_data_sel = base_addr.y[$clog2(MATRIX_DIM)-1:0] *  MATRIX_DIM
+                    + {{$clog2(MATRIX_DIM){1'b0}}, base_addr.x[$clog2(MATRIX_DIM)-1:0]};
+    else
+    matrix_data_sel = matrix_addr.y[$clog2(MATRIX_DIM)-1:0] *  MATRIX_DIM
+                    + {{$clog2(MATRIX_DIM){1'b0}}, matrix_addr.x[$clog2(MATRIX_DIM)-1:0]};
   end
   matrix #(.MATRIX_DIM(MATRIX_DIM))
-         MATRIX_MAT(.clk, .rst, .we(insert_matrix),
+         MATRIX_MAT(.clk, .rst, .we(~insert_kernal & write),
                     .D(data_in), .Q(matrix_data),
                     .addr(matrix_data_sel));
 
@@ -54,14 +58,18 @@ module tpu
   // CONVOLUTION CONTROL
   base_coord_t base_addr;
 
-  logic kernal_y_incr;
-  assign kernal_y_incr = & kernal_addr.x;
-  counter #($bits(kernal_addr.x)) kernal_addr_x_counter(.clk, .rst, .en(1'b1), .Q(kernal_addr.x));
-  counter #($bits(kernal_addr.y)) kernal_addr_y_counter(.clk, .rst, .en(kernal_y_incr), .Q(kernal_addr.y));
+  logic kernal_y_incr, kernal_x_incr;
+  assign kernal_x_incr = (write_mode & write & insert_kernal & ready) | ~(write_mode);
+  assign kernal_y_incr = kernal_addr.x == CONV_DIM-1;
+  counter #($bits(kernal_addr.x), CONV_DIM-1)
+          kernal_addr_x_counter(.clk, .rst, .en(kernal_x_incr), .Q(kernal_addr.x));
+  counter #($bits(kernal_addr.y), CONV_DIM-1)
+          kernal_addr_y_counter(.clk, .rst, .en(kernal_y_incr), .Q(kernal_addr.y));
 
   logic base_y_incr, base_x_incr;
-  assign base_x_incr = & kernal_y_incr;
-  assign base_y_incr = & base_addr.x;
+  assign base_x_incr = ((& kernal_y_incr) & ~write_mode) |
+                        (write_mode & write & ~insert_kernal);
+  assign base_y_incr = base_addr.x == MATRIX_DIM-1;
   counter #($bits(base_addr.x)) base_addr_x_counter(.clk, .rst, .en(base_x_incr), .Q(base_addr.x));
   counter #($bits(base_addr.y)) base_addr_y_counter(.clk, .rst, .en(base_y_incr), .Q(base_addr.y));
 
@@ -72,13 +80,23 @@ module tpu
   // MAC LOGIC
   // TODO: double check reset logic and its interaction with Done/Ready
   logic mac_en, mac_rst;
-  assign mac_rst = base_x_incr & ready;
-  assign done = mac_rst;
-  assign mac_en = 1'b1; // TODO:
+  assign mac_rst = (base_x_incr & ready) | rst;
+  assign done = mac_rst & ~rst;
+  assign mac_en = ~matrix_addr.x[$clog2(MATRIX_DIM)] & ~matrix_addr.y[$clog2(MATRIX_DIM)] & ~write_mode;
   mac #(`DATA_WIDTH,`DATA_WIDTH)
       conv_mac (.clk, .rst(mac_rst), .en(mac_en),
                 .a(kernal_data),
                 .b(matrix_data),
                 .sum(data_out));
 
+  assertKernalData : assert property
+    (isKnown(kernal_data, rst, (mac_en & ~write_mode), clk))
+    else $error("kernal data is unknown");
+  assertmatrixData : assert property
+    (isKnown(matrix_data, rst, (mac_en & ~write_mode), clk))
+    else $error("matrix data is unknown");
+
+  property isKnown(signal, reset, en, clock);
+    @(posedge clock) (!reset  && en)|-> !$isunknown(signal);
+  endproperty : isKnown
 endmodule : tpu
