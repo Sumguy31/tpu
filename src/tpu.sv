@@ -24,45 +24,31 @@ module tpu
 
   // KERNAL LOGIC
   // HACK: Yosys doesn't support packed arrays https://github.com/YosysHQ/yosys/issues/340
-  data_t [(CONV_DIM*CONV_DIM)-1:0] kernal_data;
+  data_t kernal_data;
   conv_coord_t kernal_addr;
-  logic [(CONV_DIM*CONV_DIM)-1:0] kernal_we;
   logic [($clog2(CONV_DIM*CONV_DIM))-1:0] kernal_data_sel;
   always_comb begin
-    kernal_we = 'b0;
     kernal_data_sel = kernal_addr.x * CONV_DIM
                       + {{$clog2(CONV_DIM){1'b0}},kernal_addr.y};
-    kernal_we[kernal_data_sel] = insert_kernal;
   end
-  generate
-    for (genvar i = 0; i < CONV_DIM; i++) begin : outer_loop_kernal
-      for (genvar j = 0; j < CONV_DIM; j++) begin : inner_loop_kernal
-        register #(`DATA_WIDTH) kernal_reg(.clk, .rst, .we(kernal_we[(i * CONV_DIM) + j]),
-                                          .D(data_in), .Q(kernal_data[(i * CONV_DIM) + j]));
-      end
-    end
-  endgenerate
 
+  matrix #(.MATRIX_DIM(CONV_DIM))
+         KERNAL_MAT(.clk, .rst, .we(insert_kernal),
+                    .D(data_in), .Q(kernal_data),
+                    .addr(kernal_data_sel));
   // MATRIX LOGIC
   // HACK: Yosys doesn't support packed arrays https://github.com/YosysHQ/yosys/issues/340
-  data_t [(MATRIX_DIM*MATRIX_DIM)-1:0] matrix_data;
+  data_t matrix_data;
   matrix_coord_t matrix_addr;
-  logic [(MATRIX_DIM*MATRIX_DIM)-1:0] matrix_we;
   logic [($clog2(MATRIX_DIM*MATRIX_DIM))-1:0] matrix_data_sel;
   always_comb begin
-    matrix_we = 'b0;
     matrix_data_sel = matrix_addr.x[$clog2(MATRIX_DIM)-1:0] *  MATRIX_DIM
                     + {{$clog2(MATRIX_DIM){1'b0}}, matrix_addr.y[$clog2(MATRIX_DIM)-1:0]};
-    matrix_we[matrix_data_sel] = insert_matrix;
   end
-  generate
-    for (genvar i = 0; i < MATRIX_DIM; i++) begin : outer_loop_matrix
-      for (genvar j = 0; j < MATRIX_DIM; j++) begin : inner_loop_matrix
-        register #(`DATA_WIDTH) matrix_reg(.clk, .rst, .we(matrix_we[i * MATRIX_DIM + j]),
-                                          .D(data_in), .Q(matrix_data[i * MATRIX_DIM + j]));
-      end
-    end
-  endgenerate
+  matrix #(.MATRIX_DIM(MATRIX_DIM))
+         MATRIX_MAT(.clk, .rst, .we(insert_matrix),
+                    .D(data_in), .Q(matrix_data),
+                    .addr(matrix_data_sel));
 
 
   // CONVOLUTION CONTROL
@@ -91,8 +77,8 @@ module tpu
   assign mac_en = 1'b1; // TODO:
   mac #(`DATA_WIDTH,`DATA_WIDTH)
       conv_mac (.clk, .rst(mac_rst), .en(mac_en),
-                .a(kernal_data[kernal_data_sel]),
-                .b(matrix_data[matrix_data_sel]),
+                .a(kernal_data),
+                .b(matrix_data),
                 .sum(data_out));
 
 endmodule : tpu

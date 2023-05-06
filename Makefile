@@ -1,7 +1,7 @@
-SV_FILES = rtl/*.sv
-V_FILES = rtl/verilog/top.v
-VH_FILES = rtl/*.vh
-INCLUDES_DIR = rtl/
+SV_FILES = src/*.sv
+V_FILES = src/verilog/top.v
+VH_FILES = src/*.vh
+INCLUDES_DIR = src/
 
 SYNTH = yosys
 SYNTH_FLAGS =
