@@ -3,7 +3,10 @@ project:
   source_files:
     - toplevel_chip.v
     - chip.sv
-    - decoder.v
+    - tpu.sv
+    - register.sv
+    - counter.sv
+    - mac.sv
   top_module:  "toplevel_chip"
 
 # As everyone will have access to all designs, try to make it easy for someone new to your design to know what
